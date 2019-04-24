@@ -50,6 +50,11 @@ const (
 	DefaultLeaderElectionRenewDeadline = 10 * time.Second
 	DefaultLeaderElectionRetryPeriod   = 5 * time.Second
 
+	DefaultClusterHealthCheckPeriod           = 10
+	DefaultClusterHealthCheckFailureThreshold = 3
+	DefaultClusterHealthCheckSuccessThreshold = 1
+	DefaultClusterHealthCheckTimeout          = 3
+
 	FederationConfigName = "federation-v2"
 )
 

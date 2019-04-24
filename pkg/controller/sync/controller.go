@@ -24,10 +24,6 @@ import (
 	"github.com/golang/glog"
 	"github.com/pkg/errors"
 
-	"github.com/kubernetes-sigs/federation-v2/pkg/apis/core/typeconfig"
-	fedv1a1 "github.com/kubernetes-sigs/federation-v2/pkg/apis/core/v1alpha1"
-	genericclient "github.com/kubernetes-sigs/federation-v2/pkg/client/generic"
-	"github.com/kubernetes-sigs/federation-v2/pkg/controller/util"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -37,6 +33,11 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/record"
+
+	"github.com/kubernetes-sigs/federation-v2/pkg/apis/core/typeconfig"
+	fedv1a1 "github.com/kubernetes-sigs/federation-v2/pkg/apis/core/v1alpha1"
+	genericclient "github.com/kubernetes-sigs/federation-v2/pkg/client/generic"
+	"github.com/kubernetes-sigs/federation-v2/pkg/controller/util"
 )
 
 const (
@@ -330,8 +331,14 @@ func (s *FederationSyncController) syncToClusters(fedResource FederatedResource,
 
 		// Resource should not exist in the named cluster
 		if !selectedClusterNames.Has(clusterName) {
-			if clusterObj != nil && !fedResource.SkipClusterDeletion(clusterObj) {
-				updater.Delete(clusterName)
+			if clusterObj != nil {
+				if fedResource.IsNamespaceInHostCluster(clusterObj) {
+					// Host cluster namespace needs to have the managed
+					// label removed so it won't be cached anymore.
+					updater.RemoveManagedLabel(clusterName, clusterObj)
+				} else {
+					updater.Delete(clusterName)
+				}
 			}
 			continue
 		}
@@ -359,10 +366,10 @@ func (s *FederationSyncController) syncToClusters(fedResource FederatedResource,
 	// Always attempt to update versions even if the updater reported errors.
 	err = fedResource.UpdateVersions(selectedClusterNames.List(), updatedVersionMap)
 	if err != nil {
-		fedResource.RecordError("VersionUpdateError", errors.Wrapf(err, "Failed to update version status"))
 		// Versioning of federated resources is an optimization to
 		// avoid unnecessary updates, and failure to record version
 		// information does not indicate a failure of propagation.
+		runtime.HandleError(err)
 	}
 
 	return status
